@@ -33,20 +33,20 @@ jobs:
           ok = [r for r in results if r.get("success") and r.get("host") in cfg_map]
           ok.sort(key=lambda r: (r.get("residential") != "residential", r.get("speed") is None, -(r.get("speed") or 0)))
           print("checked ok with config:", [(r["host"], r.get("residential"), (r.get("speed") or 0)//1000000) for r in ok], flush=True)
-          top = ok[:6]
+          top = ok[:8]
           os.makedirs("pack", exist_ok=True)
           out = []
           for i, r in enumerate(top, 1):
               host = r["host"]
               ovpn = base64.b64decode(cfg_map[host]).decode("utf-8", "replace")
+              cipher = [l for l in ovpn.splitlines() if l.strip().startswith("cipher ")]
+              print(f"{host}: config cipher={cipher}", flush=True)
               path = f"pack/jp-{i:02d}.ovpn"
               open(path, "w").write(ovpn)
               open("pass.txt", "w").write("vpn\nvpn\n")
               subprocess.run(["sudo", "rm", "-f", "ovpn.log"], capture_output=True)
               subprocess.run(["sudo", "openvpn", "--config", path, "--auth-user-pass", "pass.txt",
                               "--connect-timeout", "15", "--connect-retry-max", "1", "--resolv-retry", "2",
-                              "--data-ciphers", "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305:BF-CBC",
-                              "--data-ciphers-fallback", "BF-CBC",
                               "--daemon", "--log", "ovpn.log", "--writepid", "ovpn.pid"], capture_output=True)
               def readlog():
                   try: return subprocess.run(["sudo", "cat", "ovpn.log"], capture_output=True, text=True, timeout=10).stdout
