@@ -1,0 +1,25 @@
+name: Debug Worker Reachability
+on: workflow_dispatch
+permissions: contents: read
+jobs:
+  dbg:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe check worker
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "DOMAIN host: ${DOMAIN}"
+          getent hosts "${DOMAIN}" || echo "DNS FAIL"
+          curl -sS -m 30 -o /tmp/out.txt -w "curl HTTP %{http_code} time %{time_total}\n" "https://${DOMAIN}/check?sstp=vpn:vpn@public-vpn-114.opengw.net%3A443" || echo "curl exit $?"
+          head -c 400 /tmp/out.txt || true
+          echo
+          python3 - <<'PY'
+          import requests
+          s = requests.Session(); s.headers.update({"User-Agent": "Mozilla/5.0 (compatible; gate-checker)"})
+          try:
+              r = s.get("https://${{ secrets.DOMAIN }}/check?sstp=vpn:vpn@public-vpn-114.opengw.net%3A443", timeout=30)
+              print("py", r.status_code, r.text[:200])
+          except Exception as e:
+              print("py ERR", type(e).__name__, str(e)[:300])
+          PY
