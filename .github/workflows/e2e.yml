@@ -9,15 +9,13 @@ jobs:
     steps:
       - name: Test nodes end to end
         env:
-          GATE_SUB_TOKEN: ${{ secrets.GATE_SUB_TOKEN }}
+          SUB_B64: ${{ secrets.SUB_B64 }}
         run: |
           curl -sL -o xray.zip "https://github.com/XTLS/Xray-core/releases/download/v25.12.8/Xray-linux-64.zip"
           unzip -o -q xray.zip xray && chmod +x xray
           cat > test.py <<'PY'
           import base64, json, os, subprocess, time, urllib.parse, urllib.request
-          token = os.environ["GATE_SUB_TOKEN"]
-          req = urllib.request.Request(f"https://gate.younas.de5.net/sub?token={token}", headers={"User-Agent": "Mozilla/5.0"})
-          raw = urllib.request.urlopen(req, timeout=60).read().strip()
+          raw = base64.b64decode(os.environ["SUB_B64"])
           try:
               dec = base64.b64decode(raw + b"=" * (-len(raw) % 4)).decode("utf-8", "replace")
               if "vless://" in dec: raw = dec.encode()
