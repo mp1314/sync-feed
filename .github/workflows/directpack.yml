@@ -20,27 +20,32 @@ jobs:
           jp = (data.get("countries") or {}).get("JP", {})
           hosts = [n["host"] for n in jp.get("nodes", []) if n.get("residential") == "residential"][:12]
           print("candidate hosts:", hosts, flush=True)
-          raw = fetch("https://www.vpngate.net/api/iphone/").decode("utf-8", "replace")
-          print("API bytes:", len(raw), "head:", raw[:200].replace("\n", " | "), flush=True)
-          lines = raw.splitlines()
-          header = None; configs = {}
-          for line in lines:
-              if line.startswith("*"): continue
-              if line.startswith("#"):
-                  header = [h.strip().lower() for h in line[1:].split(",")]; continue
-              if header and line:
-                  try: fields = next(csv.reader(io.StringIO(line)))
-                  except Exception: continue
-                  d = dict(zip(header, fields))
-                  hn = (d.get("hostname") or "").strip().lower()
-                  if "." not in hn: hn = hn + ".opengw.net"
-                  if d.get("openvpn_configdata_base64"):
-                      configs[hn] = d["openvpn_configdata_base64"]
+          configs = {}
+          for attempt in range(8):
+              raw = fetch("https://www.vpngate.net/api/iphone/").decode("utf-8", "replace")
+              header = None
+              for line in raw.splitlines():
+                  if line.startswith("*"): continue
+                  if line.startswith("#"):
+                      header = [h.strip().lower() for h in line[1:].split(",")]; continue
+                  if header and line:
+                      try: fields = next(csv.reader(io.StringIO(line)))
+                      except Exception: continue
+                      d = dict(zip(header, fields))
+                      hn = (d.get("hostname") or "").strip().lower()
+                      if "." not in hn: hn = hn + ".opengw.net"
+                      if d.get("openvpn_configdata_base64"):
+                          configs[hn] = d["openvpn_configdata_base64"]
+              covered = [h for h in hosts if h in configs]
+              print(f"fetch {attempt+1}: total configs {len(configs)}, covered {len(covered)}/12", flush=True)
+              if len(covered) >= 6: break
+              time.sleep(3)
           print("parsed header:", header, flush=True)
           print("sample api hosts:", list(configs.keys())[:5], "total rows with config:", len(configs), flush=True)
           print("configs found:", [h for h in hosts if h in configs], flush=True)
           os.makedirs("pack", exist_ok=True)
           results = []
+          hosts = [h for h in hosts if h in configs][:6]
           for i, host in enumerate(hosts, 1):
               b64 = configs.get(host)
               if not b64:
