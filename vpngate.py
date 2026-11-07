@@ -405,6 +405,7 @@ def parse_csv(text: str) -> list[dict[str, Any]]:
     idx_short = pick("countryshort", default=6)
     idx_ping = pick("ping")
     idx_score = pick("score")
+    idx_speed = pick("speed")
     idx_config = pick("openvpn_configdata_base64")
     if idx_config is None:
         idx_config = next(
@@ -446,6 +447,7 @@ def parse_csv(text: str) -> list[dict[str, Any]]:
                 "config_b64": cell(idx_config),
                 "ping": to_int(idx_ping),
                 "score": to_int(idx_score),
+                "speed": to_int(idx_speed),
             }
         )
     return rows
@@ -490,6 +492,7 @@ def parse_mirror_json(data: Any) -> list[dict[str, Any]]:
                 ).strip(),
                 "ping": as_int("ping"),
                 "score": as_int("score"),
+                "speed": as_int("speed"),
             }
         )
     return rows
@@ -507,6 +510,7 @@ class Node:
     country_code: str
     ping: int | None = None
     score: int | None = None
+    speed: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -517,6 +521,7 @@ class Node:
             "country_code": self.country_code,
             "ping": self.ping,
             "score": self.score,
+            "speed": self.speed,
         }
 
 
@@ -555,6 +560,7 @@ def to_sstp_nodes(rows: Iterable[dict[str, Any]]) -> list[Node]:
                 country_code=(row.get("country_short") or "").strip().upper(),
                 ping=row.get("ping"),
                 score=row.get("score"),
+                speed=row.get("speed"),
             )
         )
     return nodes
@@ -798,7 +804,7 @@ def build_outputs(
         group["datacenter"] = sum(1 for n in group["nodes"] if n.get("residential") == "datacenter")
         group["unknown"] = group["count"] - group["residential"] - group["datacenter"]
         group["nodes"].sort(
-            key=lambda n: (n.get("residential") != "residential", n.get("latency_ms") is None, n.get("latency_ms") or 0)
+            key=lambda n: (n.get("residential") != "residential", n.get("speed") is None, -(n.get("speed") or 0), n.get("latency_ms") is None, n.get("latency_ms") or 0)
         )
 
     stats = {
@@ -839,7 +845,7 @@ def build_nodes_text(data: dict[str, Any], edge_hosts: list[str], cfg: Config) -
         name = COUNTRY_ZH.get(code) or group.get("name") or code
         nodes = sorted(
             group["nodes"],
-            key=lambda n: (n.get("residential") != "residential", n.get("latency_ms") is None, n.get("latency_ms") or 0),
+            key=lambda n: (n.get("residential") != "residential", n.get("speed") is None, -(n.get("speed") or 0), n.get("latency_ms") is None, n.get("latency_ms") or 0),
         )
         residential = [n for n in nodes if n.get("residential") == "residential"]
         others = [n for n in nodes if n.get("residential") != "residential"]
