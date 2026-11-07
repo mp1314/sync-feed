@@ -41,11 +41,28 @@ jobs:
           pp = r.stdout.split(); print(f"BASELINE direct: {float(pp[0])*8/1e6:.1f} Mbps ttfb={pp[1]}s", flush=True)
           first = urllib.parse.urlparse(lines[0]); fq = urllib.parse.parse_qs(first.query)
           plain = f"vless://{first.username}@104.21.75.54:443?security=tls&type=ws&host={fq.get('host',[''])[0]}&sni={fq.get('sni',[''])[0]}&fp=chrome&path=%2F#plain"
-          for label, line, port, par in (("PLAIN no-chain", plain, 15200, 1), ("CHAIN node10 x1", lines[9], 15201, 1), ("CHAIN node10 x4", lines[9], 15202, 4)):
+          for label, line, port, par in (("CHAIN node10 x1", lines[9], 15201, 1),):
               open("xc.json", "w").write(json.dumps(cfg_for(line, port)))
               p = subprocess.Popen(["./xray", "run", "-c", "xc.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
               time.sleep(2.5)
               print(f"{label}: {dl(port, par)}", flush=True)
+              # interval sampling on same node: 15MB download, size polled every 5s
+              open("xc.json", "w").write(json.dumps(cfg_for(lines[9], 15209)))
+              p2 = subprocess.Popen(["./xray", "run", "-c", "xc.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              time.sleep(2.5)
+              dlp = subprocess.Popen(["curl", "-s", "-m", "50", "--socks5-hostname", "127.0.0.1:15209", "-o", "big.bin", "https://speed.cloudflare.com/__down?bytes=15000000"])
+              prev = 0; t0 = time.time()
+              for k in range(8):
+                  time.sleep(5)
+                  cur = os.path.getsize("big.bin") if os.path.exists("big.bin") else 0
+                  print(f"  t+{5*(k+1)}s interval {(cur-prev)*8/5/1e6:.1f} Mbps (total {cur/1e6:.1f} MB)", flush=True)
+                  prev = cur
+                  if dlp.poll() is not None: break
+              try: dlp.terminate()
+              except Exception: pass
+              p2.terminate()
+              try: p2.wait(timeout=5)
+              except Exception: p2.kill()
               p.terminate()
               try: p.wait(timeout=5)
               except Exception: p.kill()
