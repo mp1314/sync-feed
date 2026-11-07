@@ -24,7 +24,7 @@ jobs:
           print(f"subscription nodes: {len(lines)}")
           def cfg_for(line, port):
               u = urllib.parse.urlparse(line); q = urllib.parse.parse_qs(u.query)
-              return {"log": {"loglevel": "none"},
+              return {"log": {"loglevel": "warning"},
                 "inbounds": [{"listen": "127.0.0.1", "port": port, "protocol": "socks", "settings": {"udp": False}}],
                 "outbounds": [{"protocol": "vless",
                   "settings": {"vnext": [{"address": u.hostname, "port": u.port or 443, "users": [{"id": u.username, "encryption": "none"}]}]},
@@ -32,10 +32,14 @@ jobs:
                     "tlsSettings": {"serverName": q.get("sni", [u.hostname])[0], "fingerprint": "chrome"},
                     "wsSettings": {"path": urllib.parse.unquote(q.get("path", ["/"])[0]), "host": q.get("host", [u.hostname])[0]}}}]}
           ok = 0
-          for idx, line in enumerate(lines[:12]):
+          first = urllib.parse.urlparse(lines[0]); fq = urllib.parse.parse_qs(first.query)
+          control = f"vless://{first.username}@{first.hostname}:{first.port or 443}?security=tls&type=ws&host={fq.get('host',[''])[0]}&sni={fq.get('sni',[''])[0]}&fp=chrome&path=%2F#control-plain"
+          lines = [control] + lines[:12]
+          for idx, line in enumerate(lines):
               port = 12100 + idx
               open("xc.json", "w").write(json.dumps(cfg_for(line, port)))
-              p = subprocess.Popen(["./xray", "run", "-c", "xc.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              err = open("xerr.log", "wb") if idx <= 1 else subprocess.DEVNULL
+              p = subprocess.Popen(["./xray", "run", "-c", "xc.json"], stdout=subprocess.DEVNULL, stderr=err)
               time.sleep(2.5)
               remark = urllib.parse.unquote(line.split("#")[-1]) if "#" in line else ""
               try:
@@ -52,10 +56,14 @@ jobs:
                       exitinfo = f"exit={j.get('query')} {j.get('country')}/{j.get('city')} org={j.get('org')}"
                   except Exception:
                       exitinfo = "exit lookup failed"
-              print(f"node {idx+1} [{remark}] google204={code} {exitinfo}", flush=True)
+              print(f"node {idx} [{remark}] google204={code} {exitinfo}", flush=True)
+              if idx <= 1:
+                  try:
+                      err.close(); print("xray log tail:", open("xerr.log").read()[-600:], flush=True)
+                  except Exception as e: print("no xray log", e)
               p.terminate()
               try: p.wait(timeout=5)
               except Exception: p.kill()
-          print(f"SUMMARY working {ok}/12")
+          print(f"SUMMARY working {ok}/13 (incl control)")
           PY
           python3 test.py
