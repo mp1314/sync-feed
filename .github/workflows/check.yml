@@ -26,7 +26,7 @@ on:
         default: '25'
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -130,3 +130,18 @@ jobs:
         run: |
           echo "订阅地址：https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/nodes.txt"
           echo "仪表盘：  https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+
+      - name: Heartbeat commit (keep scheduled workflow alive)
+        run: |
+          today=$(date -u +%F)
+          last=$(git log -1 --format=%cs -- heartbeat.txt 2>/dev/null || echo none)
+          if [ "$last" != "$today" ]; then
+            echo "$today" > heartbeat.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add heartbeat.txt
+            git commit -m "chore: heartbeat $today"
+            git push
+          else
+            echo "heartbeat already current ($today)"
+          fi
