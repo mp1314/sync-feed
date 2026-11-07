@@ -69,6 +69,7 @@ jobs:
           CHECK_TIMEOUT: ${{ github.event.inputs.timeout || '25' }}
           MAX_CHECK_NODES: ${{ github.event.inputs.max_nodes || '0' }}
           MIN_SUCCESS_RATIO: '0'
+          EDGE_HOSTS: "cf1.younas.de5.net:443,cf2.younas.de5.net:443,104.21.75.54:443,172.67.214.210:443"
         run: python vpngate.py
 
       - name: Ensure GitHub Pages is enabled
