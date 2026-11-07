@@ -63,13 +63,18 @@ jobs:
                               "--data-ciphers", "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305:BF-CBC",
                               "--data-ciphers-fallback", "BF-CBC",
                               "--daemon", "--log", "ovpn.log", "--writepid", "ovpn.pid"], capture_output=True)
+              def readlog():
+                  try:
+                      return subprocess.run(["sudo", "cat", "ovpn.log"], capture_output=True, text=True, timeout=10).stdout
+                  except Exception:
+                      return ""
               ok = False
               for _ in range(24):
                   time.sleep(2.5)
-                  if os.path.exists("ovpn.log") and "Initialization Sequence Completed" in open("ovpn.log", errors="replace").read():
+                  if "Initialization Sequence Completed" in readlog():
                       ok = True; break
               if not ok:
-                  tail = open("ovpn.log", errors="replace").read()[-200:].replace("\n", " ") if os.path.exists("ovpn.log") else ""
+                  tail = readlog()[-200:].replace("\n", " ")
                   print(f"{host}: CONNECT FAIL {tail}", flush=True)
                   results.append((host, "fail", ""))
               else:
