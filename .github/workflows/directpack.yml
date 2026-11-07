@@ -21,6 +21,7 @@ jobs:
           hosts = [n["host"] for n in jp.get("nodes", []) if n.get("residential") == "residential"][:12]
           print("candidate hosts:", hosts, flush=True)
           raw = fetch("https://www.vpngate.net/api/iphone/").decode("utf-8", "replace")
+          print("API bytes:", len(raw), "head:", raw[:200].replace("\n", " | "), flush=True)
           lines = raw.splitlines()
           header = None; configs = {}
           for line in lines:
@@ -33,9 +34,11 @@ jobs:
                   d = dict(zip(header, fields))
                   hn = (d.get("hostname") or "").strip().lower()
                   if "." not in hn: hn = hn + ".opengw.net"
-                  if hn in hosts and d.get("openvpn_configdata_base64"):
+                  if d.get("openvpn_configdata_base64"):
                       configs[hn] = d["openvpn_configdata_base64"]
-          print("configs found:", list(configs.keys()), flush=True)
+          print("parsed header:", header, flush=True)
+          print("sample api hosts:", list(configs.keys())[:5], "total rows with config:", len(configs), flush=True)
+          print("configs found:", [h for h in hosts if h in configs], flush=True)
           os.makedirs("pack", exist_ok=True)
           results = []
           for i, host in enumerate(hosts, 1):
