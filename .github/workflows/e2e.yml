@@ -16,7 +16,7 @@ jobs:
           cat > test.py <<'PY'
           import base64, json, os, subprocess, time, urllib.parse, urllib.request
           token = os.environ["GATE_SUB_TOKEN"]
-          raw = urllib.request.urlopen(f"https://gate.younas.de5.net/sub?token={token}", timeout=60).read().strip()
+          raw = urllib.request.urlopen(f"https://edgetunnel.mp251069-a62.workers.dev/sub?token={token}", timeout=60).read().strip()
           try:
               dec = base64.b64decode(raw + b"=" * (-len(raw) % 4)).decode("utf-8", "replace")
               if "vless://" in dec: raw = dec.encode()
