@@ -24,13 +24,16 @@ jobs:
           print(f"subscription nodes: {len(lines)}")
           def cfg_for(line, port):
               u = urllib.parse.urlparse(line); q = urllib.parse.parse_qs(u.query)
-              return {"log": {"loglevel": "warning"},
+              return {"log": {"loglevel": "debug"},
                 "inbounds": [{"listen": "127.0.0.1", "port": port, "protocol": "socks", "settings": {"udp": False}}],
                 "outbounds": [{"protocol": "vless",
                   "settings": {"vnext": [{"address": u.hostname, "port": u.port or 443, "users": [{"id": u.username, "encryption": "none"}]}]},
                   "streamSettings": {"network": "ws", "security": "tls",
                     "tlsSettings": {"serverName": q.get("sni", [u.hostname])[0], "fingerprint": "chrome"},
                     "wsSettings": {"path": urllib.parse.unquote(q.get("path", ["/"])[0]), "host": q.get("host", [u.hostname])[0]}}}]}
+          print("DIAG curl cf1:", subprocess.run(["curl", "-s", "-m", "15", "-o", "/dev/null", "-w", "%{http_code}", "https://cf1.younas.de5.net/"], capture_output=True, text=True).stdout, flush=True)
+          print("DIAG curl gate:", subprocess.run(["curl", "-s", "-m", "15", "-o", "/dev/null", "-w", "%{http_code}", "https://gate.younas.de5.net/"], capture_output=True, text=True).stdout, flush=True)
+          print("DIAG curl google direct:", subprocess.run(["curl", "-s", "-m", "15", "-o", "/dev/null", "-w", "%{http_code}", "https://www.google.com/generate_204"], capture_output=True, text=True).stdout, flush=True)
           ok = 0
           first = urllib.parse.urlparse(lines[0]); fq = urllib.parse.parse_qs(first.query)
           control = f"vless://{first.username}@{first.hostname}:{first.port or 443}?security=tls&type=ws&host={fq.get('host',[''])[0]}&sni={fq.get('sni',[''])[0]}&fp=chrome&path=%2F#control-plain"
@@ -59,7 +62,7 @@ jobs:
               print(f"node {idx} [{remark}] google204={code} {exitinfo}", flush=True)
               if idx <= 1:
                   try:
-                      err.close(); print("xray log tail:", open("xerr.log").read()[-600:], flush=True)
+                      err.close(); print("xray log tail:", open("xerr.log").read()[-2500:], flush=True)
                   except Exception as e: print("no xray log", e)
               p.terminate()
               try: p.wait(timeout=5)
