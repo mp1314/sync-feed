@@ -1,6 +1,7 @@
 name: Debug Worker Reachability
 on: workflow_dispatch
-permissions: contents: read
+permissions:
+  contents: read
 jobs:
   dbg:
     runs-on: ubuntu-latest
