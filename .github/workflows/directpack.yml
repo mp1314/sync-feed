@@ -20,7 +20,7 @@ jobs:
           import requests, vpngate
           cfg = vpngate.Config.load()
           session = requests.Session()
-          rows, source = vpngate.fetch_servers(cfg, session)
+          rows, source = vpngate.fetch_vpngate(cfg, session)
           nodes = vpngate.to_sstp_nodes(rows)
           cfg_map = {}
           for row in rows:
