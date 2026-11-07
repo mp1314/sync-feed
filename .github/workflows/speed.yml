@@ -5,9 +5,9 @@ permissions:
 jobs:
   speed:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
-      - name: Measure node throughput
+      - name: Control measurements
         env:
           SUB_B64: ${{ secrets.SUB_B64 }}
         run: |
@@ -18,7 +18,6 @@ jobs:
           raw = base64.b64decode(os.environ["SUB_B64"])
           dec = base64.b64decode(raw + b"=" * (-len(raw) % 4)).decode("utf-8", "replace")
           lines = [l for l in dec.splitlines() if l.strip()]
-          print(f"nodes: {len(lines)}")
           def cfg_for(line, port):
               u = urllib.parse.urlparse(line); q = urllib.parse.parse_qs(u.query)
               return {"log": {"loglevel": "none"},
@@ -28,20 +27,25 @@ jobs:
                   "streamSettings": {"network": "ws", "security": "tls",
                     "tlsSettings": {"serverName": q.get("sni", [u.hostname])[0], "fingerprint": "chrome"},
                     "wsSettings": {"path": urllib.parse.unquote(q.get("path", ["/"])[0]), "host": q.get("host", [u.hostname])[0]}}}]}
-          for idx, line in enumerate(lines[:10]):
-              port = 15100 + idx
+          def dl(port, parallel=1):
+              if parallel == 1:
+                  r = subprocess.run(["curl", "-s", "-m", "25", "--socks5-hostname", f"127.0.0.1:{port}", "-o", "/dev/null", "-w", "%{speed_download} %{time_starttransfer}", "https://speed.cloudflare.com/__down?bytes=3000000"], capture_output=True, text=True, timeout=35)
+                  pp = r.stdout.split()
+                  return f"{float(pp[0])*8/1e6:.1f} Mbps ttfb={pp[1] if len(pp)>1 else '?'}s"
+              procs = [subprocess.Popen(["curl", "-s", "-m", "25", "--socks5-hostname", f"127.0.0.1:{port}", "-o", "/dev/null", "-w", "%{speed_download}", "https://speed.cloudflare.com/__down?bytes=3000000"], stdout=subprocess.PIPE, text=True) for _ in range(parallel)]
+              tot = 0.0
+              for pr in procs:
+                  out, _ = pr.communicate(timeout=40); tot += float(out.strip() or 0)
+              return f"aggregate {tot*8/1e6:.1f} Mbps"
+          r = subprocess.run(["curl", "-s", "-m", "20", "-o", "/dev/null", "-w", "%{speed_download} %{time_starttransfer}", "https://speed.cloudflare.com/__down?bytes=3000000"], capture_output=True, text=True)
+          pp = r.stdout.split(); print(f"BASELINE direct: {float(pp[0])*8/1e6:.1f} Mbps ttfb={pp[1]}s", flush=True)
+          first = urllib.parse.urlparse(lines[0]); fq = urllib.parse.parse_qs(first.query)
+          plain = f"vless://{first.username}@104.21.75.54:443?security=tls&type=ws&host={fq.get('host',[''])[0]}&sni={fq.get('sni',[''])[0]}&fp=chrome&path=%2F#plain"
+          for label, line, port, par in (("PLAIN no-chain", plain, 15200, 1), ("CHAIN node10 x1", lines[9], 15201, 1), ("CHAIN node10 x4", lines[9], 15202, 4)):
               open("xc.json", "w").write(json.dumps(cfg_for(line, port)))
               p = subprocess.Popen(["./xray", "run", "-c", "xc.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
               time.sleep(2.5)
-              remark = urllib.parse.unquote(line.split("#")[-1]) if "#" in line else ""
-              try:
-                  r = subprocess.run(["curl", "-s", "-m", "25", "--socks5-hostname", f"127.0.0.1:{port}", "-o", "/dev/null", "-w", "%{speed_download} %{time_starttransfer}", "https://speed.cloudflare.com/__down?bytes=3000000"], capture_output=True, text=True, timeout=35)
-                  parts = r.stdout.split()
-                  spd = float(parts[0]) * 8 / 1e6 if parts else 0
-                  ttfb = parts[1] if len(parts) > 1 else "?"
-                  print(f"node {idx+1} [{remark}] {spd:.1f} Mbps ttfb={ttfb}s", flush=True)
-              except Exception as e:
-                  print(f"node {idx+1} [{remark}] ERR", flush=True)
+              print(f"{label}: {dl(port, par)}", flush=True)
               p.terminate()
               try: p.wait(timeout=5)
               except Exception: p.kill()
